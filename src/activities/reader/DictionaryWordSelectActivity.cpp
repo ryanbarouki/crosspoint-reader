@@ -168,9 +168,8 @@ void DictionaryWordSelectActivity::performLookup() {
 
   if (found) {
     popup = Popup::None;
-    startActivityForResult(std::make_unique<DictionaryDefinitionActivity>(renderer, mappedInput, std::move(headword),
-                                                                          std::move(definition)),
-                           [this](const ActivityResult&) { requestUpdate(); });
+    replaceActivityKeepingStack(std::make_unique<DictionaryDefinitionActivity>(
+        renderer, mappedInput, std::move(headword), std::move(definition)));
     return;
   }
   popup = ok ? Popup::NotFound : Popup::Error;
