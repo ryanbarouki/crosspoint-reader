@@ -19,6 +19,7 @@
 #include "fontIds.h"
 #include "util/Dictionary.h"
 #include "util/HtmlToPlainText.h"
+#include "util/DictFontUtils.h"
 
 namespace {
 
@@ -253,11 +254,22 @@ void DictionaryDefinitionActivity::saveWordsFromLine(const int fontId, const int
   bool lineHasWords = false;
   const int spaceWidth = renderer.getSpaceWidth(fontId, EpdFontFamily::REGULAR);
   char* c = line;
+  char word[MAX_LINE_BYTES + 1];
   while (true) {
     if (std::isspace(*c) || *c == '\0') {
       int wordLen = c - wordStart;
+      memcpy(word, wordStart, wordLen);
+      word[wordLen] = '\0';
+      std::vector<DictTextSpan> out;
+      splitDictRuns(word, out);
+      char spanBuf[MAX_LINE_BYTES + 1];
       if (wordLen > 0) {
-        int wordWidth = measureSpan(fontId, wordStart, wordLen);
+        int wordWidth = 0;
+        for (auto& span : out) {
+          memcpy(spanBuf, word + span.start, span.len);
+          spanBuf[span.len] = '\0';
+          wordWidth += measureSpan(span.isDictFont ? DICT_FONT_ID : fontId, spanBuf, span.len);
+        }
         WordBox box;
         box.fontId = fontId;
         box.x = x;
@@ -335,7 +347,17 @@ void DictionaryDefinitionActivity::drawBody(const int fontId, const int x, const
     const size_t len = std::min(static_cast<size_t>(lines[i].len), MAX_LINE_BYTES);
     memcpy(lineBuf, definition.c_str() + lines[i].start, len);
     lineBuf[len] = '\0';
-    renderer.drawText(fontId, x, startY + (i - firstLine) * lineHeight, lineBuf);
+    std::vector<DictTextSpan> out;
+    splitDictRuns(lineBuf, out);
+    int addX = 0;
+    for (auto& span : out) {
+      int id = span.isDictFont ? DICT_FONT_ID : fontId;
+      char spanBuf[MAX_LINE_BYTES + 1];
+      memcpy(spanBuf, lineBuf + span.start, span.len);
+      spanBuf[span.len] = '\0';
+      renderer.drawText(id, x + addX, startY + (i - firstLine) * lineHeight, spanBuf);
+      addX += measureSpan(id, spanBuf, span.len);
+    }
   }
 }
 

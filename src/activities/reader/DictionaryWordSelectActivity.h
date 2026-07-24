@@ -55,6 +55,7 @@ class DictionaryWordSelectActivity final : public Activity {
   void drawHints() const;
   void handleUnexpectedError();
   const char* getSelectedWord(const WordBox& word);
+  int measureSpan(const int fontId, const char* text, size_t len) const;
 
   std::unique_ptr<Page> page;
   DictionaryPageMetadata* metadata = nullptr;
