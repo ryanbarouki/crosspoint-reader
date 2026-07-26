@@ -13,6 +13,8 @@
 #include "CrossPointSettings.h"
 #include "DictionaryDefinitionActivity.h"
 #include "components/UITheme.h"
+#include "fontIds.h"
+#include "util/DictFontUtils.h"
 #include "util/Dictionary.h"
 
 namespace {
@@ -281,7 +283,25 @@ bool DictionaryWordSelectActivity::drawHighlightWithSnapshot() {
   snapshotIdx = saved ? selected : -1;
 
   renderer.fillRect(hx, hy, hw, hh, true);
-  renderer.drawText(fontId, word.x, word.y, getSelectedWord(word), false, word.style);
+  if (!definition) {
+    renderer.drawText(fontId, word.x, word.y, getSelectedWord(word), false, word.style);
+    return saved;
+  }
+
+  memcpy(wordBuffer, definition->c_str() + word.defView.offset, word.defView.len);
+  wordBuffer[word.defView.len] = '\0';
+  std::vector<DictTextSpan> out;
+  splitDictRuns(wordBuffer, out);
+  int addX = 0;
+  char spanBuf[MAX_LINE_BYTES + 1];
+  for (auto& span : out) {
+    memcpy(spanBuf, wordBuffer + span.start, span.len);
+    spanBuf[span.len] = '\0';
+    int id = span.isDictFont ? DICT_FONT_ID : word.fontId;
+    renderer.drawText(id, word.x + addX, word.y, spanBuf, false, word.style);
+    addX += measureSpan(id, spanBuf, span.len);
+  }
+  // renderer.drawText(fontId, word.x, word.y, getSelectedWord(word), false, word.style);
   return saved;
 }
 
@@ -350,7 +370,19 @@ void DictionaryWordSelectActivity::render(RenderLock&&) {
     }
     if (!words) handleUnexpectedError();
     for (const auto& word : *words) {
-      renderer.drawText(word.fontId, word.x, word.y, getSelectedWord(word), true, word.style);
+      memcpy(wordBuffer, definition->c_str() + word.defView.offset, word.defView.len);
+      wordBuffer[word.defView.len] = '\0';
+      std::vector<DictTextSpan> out;
+      splitDictRuns(wordBuffer, out);
+      int addX = 0;
+      char spanBuf[MAX_LINE_BYTES + 1];
+      for (auto& span : out) {
+        memcpy(spanBuf, wordBuffer + span.start, span.len);
+        spanBuf[span.len] = '\0';
+        int id = span.isDictFont ? DICT_FONT_ID : word.fontId;
+        renderer.drawText(id, word.x + addX, word.y, spanBuf, true, word.style);
+        addX += measureSpan(id, spanBuf, span.len);
+      }
     }
   }
 
@@ -370,4 +402,12 @@ void DictionaryWordSelectActivity::render(RenderLock&&) {
     return;
   }
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+}
+
+int DictionaryWordSelectActivity::measureSpan(const int fontId, const char* text, size_t len) const {
+  char buf[MAX_LINE_BYTES + 1];
+  len = std::min(len, MAX_LINE_BYTES);
+  memcpy(buf, text, len);
+  buf[len] = '\0';
+  return renderer.getTextAdvanceX(fontId, buf, EpdFontFamily::REGULAR);
 }
